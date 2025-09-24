@@ -1,0 +1,348 @@
+========ПРОЕКТ 1: lr51===============================================================================
+=====================================================================================================
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
+· Подключение библиотек для работы с цифровыми схемами и числами
+
+entity lr51 is
+  Port(
+    rst: in std_logic;
+    clk: in std_logic;
+    SEG: out std_logic_vector(7 downto 0);
+    DIG: out std_logic_vector(3 downto 0);
+    LED: out std_logic_vector(7 downto 0);
+    BUZZER: out std_logic
+  );
+end lr51;
+· Объявление модуля с портами:
+  · rst - вход сброса (активный уровень '0')
+  · clk - тактовый сигнал
+  · SEG - сегменты 7-сегментного индикатора
+  · DIG - выбор разряда индикатора
+  · LED - светодиоды
+  · BUZZER - зуммер
+
+architecture arch_lr51 of lr51 is
+  signal div_cnt: unsigned(23 downto 0);
+· 24-битный счетчик для деления частоты
+
+  signal clk_1: std_logic;
+· Медленный тактовый сигнал (1 Гц)
+
+  signal clk_1p: std_logic;
+· Задержанная версия clk_1 для обнаружения фронта
+
+  signal cntfirst: unsigned(3 downto 0); 
+  signal cntsecond: unsigned(3 downto 0);
+· Два счетчика для двух разрядов (единицы и десятки)
+
+  signal cnt4: unsigned(3 downto 0);  
+· Временный сигнал для текущей отображаемой цифры
+
+  signal cnt: unsigned(7 downto 0);     
+· 8-битный счетчик для светодиодов
+
+begin
+· Начало исполняемого кода
+
+  process(rst, clk)
+  begin
+    if rst = '0' then
+      div_cnt <= (others => '0');
+      clk_1 <= '1';
+· При сбросе обнуляем счетчик и устанавливаем clk_1 в '1'
+
+    elsif rising_edge(clk) then
+      if div_cnt >= 10000000 then  
+        div_cnt <= (others => '0');
+        clk_1 <= not clk_1;
+· При достижении 10 миллионов сбрасываем счетчик и инвертируем медленный сигнал
+
+      else
+        div_cnt <= div_cnt + 1;
+      end if;
+    end if;
+  end process;
+· Иначе увеличиваем счетчик
+
+  process(rst, clk)
+  begin
+    if rst = '0' then
+      clk_1p <= '1';
+    elsif rising_edge(clk) then
+      clk_1p <= clk_1;
+    end if;
+  end process;
+· Процесс задержки сигнала - запоминаем предыдущее значение clk_1
+
+  process(rst, clk)
+  begin
+    if rst = '0' then
+      cntfirst <= (others => '0');
+      cntsecond <= (others => '0');
+      BUZZER <= '1';
+      cnt <= (others => '0');
+· При сбросе обнуляем все счетчики и выключаем зуммер
+
+    elsif rising_edge(clk) then
+      if clk_1p = '0' and clk_1 = '1' then
+· Обнаружение фронта медленного сигнала (когда он меняется с 0 на 1)
+
+        if cntfirst = 9 and cntsecond = 9 then
+          cntfirst <= (others => '0');
+          cntsecond <= (others => '0');
+          BUZZER <= '0';
+          cnt <= cnt + 1;
+· Если оба счетчика = 9 - сбрасываем их, включаем зуммер, увеличиваем счетчик светодиодов
+
+        elsif cntfirst = 9 then
+          cntfirst <= (others => '0');
+          cntsecond <= cntsecond + 1;
+          BUZZER <= '1';
+· Если только единицы = 9 - сбрасываем единицы, увеличиваем десятки, выключаем зуммер
+
+        else
+          cntfirst <= cntfirst + 1;
+        end if;
+      end if;
+    end if;
+  end process;
+· Иначе просто увеличиваем счетчик единиц
+
+  process(rst, clk)
+  begin
+    if rst = '0' then
+      DIG <= "1111";
+    elsif rising_edge(clk) then
+      case div_cnt(19 downto 18) is
+        when "00" => DIG <= "1110";
+        when "01" => DIG <= "1101";
+        when "10" => DIG <= "1011";
+        when "11" => DIG <= "0111";
+        when others => DIG <= "1111";
+      end case;
+    end if;
+  end process;
+· Мультиплексирование разрядов индикатора:
+  · Используем биты 19-18 счетчика для быстрого переключения
+  · "1110" - активен первый разряд (справа)
+  · "1101" - активен второй разряд
+  · и т.д.
+process(rst, clk)
+  begin
+    if rst = '0' then
+      cnt4 <= (others => '0');
+    elsif rising_edge(clk) then
+      case div_cnt(19 downto 18) is
+        when "00" => cnt4 <= cntfirst;
+        when "01" => cnt4 <= cntsecond;
+        when others => cnt4 <= (others => '0');
+      end case;
+    end if;
+  end process;
+· Выбор цифры для активного разряда:
+  · Для первого разряда показываем единицы
+  · Для второго разряда показываем десятки
+
+  process(rst, clk)
+  begin 
+    if rst = '0' then
+      SEG <= (others => '0');
+    elsif rising_edge(clk) then
+      case cnt4 is
+        when "0000" => SEG <= "00111111"; -- 0
+        when "0001" => SEG <= "00000110"; -- 1
+        when "0010" => SEG <= "01011011"; -- 2
+        when "0011" => SEG <= "01001111"; -- 3
+        when "0100" => SEG <= "01100110"; -- 4
+        when "0101" => SEG <= "01101101"; -- 5
+        when "0110" => SEG <= "01111101"; -- 6
+        when "0111" => SEG <= "00000111"; -- 7
+        when "1000" => SEG <= "01111111"; -- 8
+        when "1001" => SEG <= "01101111"; -- 9
+        when others => SEG <= (others => '1');
+      end case;
+    end if;
+  end process;
+· Преобразование цифры в код семисегментного индикатора
+
+  LED <= not std_logic_vector(cnt);
+· Вывод счетчика на светодиоды (инвертированный)
+
+end arch_lr51;
+· Конец архитектуры
+
+========ПРОЕКТ 2: lr52===============================================================================
+=====================================================================================================
+
+architecture arch_lr52 of lr52 is
+  signal div_cnt: unsigned(23 downto 0);
+  signal clk_1: std_logic;
+  signal clk_1p: std_logic;
+  signal cnt0, cnt1, cnt2, cnt3: unsigned(3 downto 0);
+· Четыре счетчика для четырех разрядов (единицы, десятки, сотни, тысячи)
+
+  signal cnt4: unsigned(3 downto 0);
+  signal cnt: unsigned(7 downto 0);
+  signal digit_select: unsigned(1 downto 0);
+  signal buzzer_enable: std_logic;
+· buzzer_enable - флаг включения зуммера
+
+begin
+  process(rst, clk)
+  begin
+    if rst = '0' then
+      div_cnt <= (others => '0');
+      clk_1 <= '0';
+    elsif rising_edge(clk) then
+      if div_cnt = 10000000 then
+        div_cnt <= (others => '0');
+        clk_1 <= not clk_1;
+      else
+        div_cnt <= div_cnt + 1;
+      end if;
+    end if;
+  end process;
+· Деление частоты (аналогично первому проекту)
+
+  process(rst, clk)
+  begin
+    if rst = '0' then
+      clk_1p <= '0';
+    elsif rising_edge(clk) then
+      clk_1p <= clk_1;
+    end if;
+  end process;
+· Задержка сигнала для обнаружения фронта
+
+  process(rst, clk)
+  begin
+    if rst = '0' then
+      cnt0 <= (others => '0');
+      cnt1 <= (others => '0');
+      cnt2 <= (others => '0');
+      cnt3 <= (others => '0');
+      buzzer_enable <= '0';
+      cnt <= (others => '0');
+· Инициализация при сбросе
+
+    elsif rising_edge(clk) then
+      buzzer_enable <= '0';
+      
+      if clk_1p = '0' and clk_1 = '1' then -- Обнаружение фронта
+· Сбрасываем флаг зуммера и проверяем фронт
+
+        if cnt0 = 9 then
+          cnt0 <= (others => '0');
+          buzzer_enable <= '1'; -- Активируем баззер
+          cnt <= cnt + 1; -- Увеличиваем счетчик для светодиодов
+· Если единицы = 9 - сбрасываем их, включаем зуммер
+
+          if cnt1 = 9 then
+            cnt1 <= (others => '0');
+            buzzer_enable <= '1'; -- Активируем баззер
+            cnt <= cnt + 1; -- Увеличиваем счетчик для светодиодов
+· Если десятки = 9 - сбрасываем их
+
+            if cnt2 = 9 then
+              cnt2 <= (others => '0');
+              buzzer_enable <= '1'; -- Активируем баззер
+              cnt <= cnt + 1; -- Увеличиваем счетчик для светодиодов
+· Если сотни = 9 - сбрасываем их
+
+              if cnt3 = 9 then
+                cnt3 <= (others => '0');
+                buzzer_enable <= '1'; -- Активируем баззер
+                cnt <= cnt + 1; -- Увеличиваем счетчик для светодиодов
+              else
+                cnt3 <= cnt3 + 1;
+              end if;
+· Если тысячи = 9 - сбрасываем, иначе увеличиваем
+else
+              cnt2 <= cnt2 + 1;
+            end if;
+          else
+            cnt1 <= cnt1 + 1;
+          end if;
+        else
+          cnt0 <= cnt0 + 1;
+        end if;
+      end if;
+    end if;
+  end process;
+· Иерархическая структура счетчиков
+
+  BUZZER <= '0' when buzzer_enable = '1' else '1';
+· Управление зуммером - активен низким уровнем
+
+  digit_select <= div_cnt(17 downto 16); -- Более быстрая частота обновления
+· Выбор разряда из битов 17-16 (более быстрый чем в первом проекте)
+
+  process(digit_select)
+  begin
+    case digit_select is
+      when "00" => DIG <= "1110"; -- Первый разряд
+      when "01" => DIG <= "1101"; -- Второй разряд
+      when "10" => DIG <= "1011"; -- Третий разряд
+      when "11" => DIG <= "0111"; -- Четвертый разряд
+      when others => DIG <= "1111";
+    end case;
+  end process;
+· Активация разрядов индикатора
+
+  process(digit_select, cnt0, cnt1, cnt2, cnt3)
+  begin
+    case digit_select is
+      when "00" => cnt4 <= cnt0;
+      when "01" => cnt4 <= cnt1;
+      when "10" => cnt4 <= cnt2;
+      when "11" => cnt4 <= cnt3;
+      when others => cnt4 <= (others => '0');
+    end case;
+  end process;
+· Выбор цифры для активного разряда
+
+  process(cnt4)
+  begin
+    case cnt4 is
+      when "0000" => SEG <= "00111111"; -- 0
+      when "0001" => SEG <= "00000110"; -- 1
+      when "0010" => SEG <= "01011011"; -- 2
+      when "0011" => SEG <= "01001111"; -- 3
+      when "0100" => SEG <= "01100110"; -- 4
+      when "0101" => SEG <= "01101101"; -- 5
+      when "0110" => SEG <= "01111101"; -- 6
+      when "0111" => SEG <= "00000111"; -- 7
+      when "1000" => SEG <= "01111111"; -- 8
+      when "1001" => SEG <= "01101111"; -- 9
+      when others => SEG <= (others => '1');
+    end case;
+  end process;
+· Декодирование цифры в семисегментный код
+
+  LED <= not std_logic_vector(cnt);
+· Управление светодиодами
+
+end arch_lr52;
+· Конец архитектуры
+
+---
+
+Основные отличия между проектами:
+
+1. Количество разрядов:
+   · Проект 1: 2 разряда (00-99)
+   · Проект 2: 4 разряда (0000-9999)
+2. Логика зуммера:
+   · Проект 1: зуммер включается только при переходе 99→00
+   · Проект 2: зуммер включается при каждом переполнении разряда
+3. Скорость мультиплексирования:
+   · Проект 1: биты 19-18 счетчика
+   · Проект 2: биты 17-16 счетчика (быстрее)
+4. Организация счетчиков:
+   · Проект 1: два независимых счетчика
+   · Проект 2: иерархическая структура с переносами
+
+Оба проекта используют динамическую индикацию - быстрое переключение между разрядами создает иллюзию одновременного свечения всех цифр.

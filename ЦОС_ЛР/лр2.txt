@@ -1,0 +1,180 @@
+============================проект 1================================================================
+====================================================================================================
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_ARITH.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+
+entity lr21 is
+    Port(
+        KEY_G1: in STD_LOGIC;
+        KEY_V1: in STD_LOGIC;
+        KEY_G2: in STD_LOGIC;
+        KEY_V2: in STD_LOGIC;
+        KEY_G3: in STD_LOGIC;
+        KEY_V3: in STD_LOGIC;
+        LED: out STD_LOGIC_VECTOR(7 downto 0)
+    );
+end lr21;
+
+architecture arch_lr21 of lr21 is
+    signal led_temp : STD_LOGIC_VECTOR(7 downto 0) := (others => '1');
+begin
+    process(KEY_G1, KEY_G2, KEY_G3, KEY_V1, KEY_V2, KEY_V3)
+    begin
+        led_temp <= (others => '1');
+        
+        if KEY_G1 = '0' and KEY_V1 = '0' then
+            led_temp <= "01111111";
+        elsif KEY_G1 = '0' and KEY_V2 = '0'  then
+            led_temp <= "00111111";
+        elsif KEY_G1 = '0' and KEY_V3 = '0' then
+            led_temp <= "00011111";
+        end if;
+        
+        if KEY_G2 = '0' and KEY_V1 = '0' then
+            led_temp <= "00001111";
+        elsif KEY_G2 = '0' and KEY_V2 = '0' then
+            led_temp <= "00000111";
+        elsif KEY_G2 = '0' and KEY_V3 = '0' then
+            led_temp <= "00000011";
+        end if;
+        
+        if KEY_G3 = '0' and KEY_V1 = '0' then
+            led_temp <= "00000001";
+        elsif KEY_G3 = '0' and KEY_V2 = '0' then
+            led_temp <= "00000000";
+        end if;
+        
+    end process;
+    
+    LED <= led_temp;
+end arch_lr21;
+
+============================проект 2================================================================
+====================================================================================================
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_ARITH.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+
+entity lr22 is
+  Port(
+    clk: in STD_LOGIC;
+    LED: out STD_LOGIC_VECTOR(7 downto 0) := (others => '1')-- выходные данные, 4 светодиода по их индексам с 0 по 3 (в сумме 4)
+    );
+end lr22;
+
+architecture arch_lr22 of lr22 is
+	signal cnt: INTEGER range 0 to 50000000 := 0;
+	signal led_state: STD_LOGIC := '1';
+begin
+  process(clk)
+  begin
+    if rising_edge(clk) then
+		if cnt < 50000000 then
+			cnt <= cnt + 1;
+		else
+			cnt <= 0;
+			led_state <= not led_state;
+		end if;
+	end if;
+  end process;
+  LED(0) <= led_state;
+end arch_lr22;
+
+============================проект 3================================================================
+====================================================================================================
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+entity lr23 is
+  Port(
+    clk: in STD_LOGIC;
+    button: in STD_LOGIC_VECTOR(2 downto 0);
+    LED: out STD_LOGIC_VECTOR(7 downto 0) := (others => '1')
+  );
+end lr23;
+
+architecture arch_lr23 of lr23 is
+  signal cnt: INTEGER range 0 to 50000000 := 0;
+  signal led_state: STD_LOGIC := '0';
+  signal any_button_pressed: STD_LOGIC;
+  signal debounced_button: STD_LOGIC_VECTOR(2 downto 0) := "111";
+  signal lfsr: STD_LOGIC_VECTOR(7 downto 0) := "10101010";
+  signal rand_idx1: INTEGER range 0 to 7 := 0;
+  signal rand_idx2: INTEGER range 0 to 7 := 0;
+  signal led_temp: STD_LOGIC_VECTOR(7 downto 0) := (others => '1');
+  signal prev_any_button_pressed: STD_LOGIC := '0';
+begin
+
+  debounced_button <= button;
+
+  -- Определяем нажатие любой кнопки
+  any_button_pressed <= '0' when debounced_button = "111" else '1';
+
+  -- Генератор псевдослучайных чисел
+  process(clk)
+  begin
+    if rising_edge(clk) then
+      lfsr <= lfsr(6 downto 0) & (lfsr(7) XOR lfsr(5) XOR lfsr(4) XOR lfsr(3));
+    end if;
+  end process;
+
+  -- Выбор случайных индексов при нажатии кнопки
+  process(clk)
+  begin
+    if rising_edge(clk) then
+      prev_any_button_pressed <= any_button_pressed;
+      
+      -- Генерируем новые случайные индексы только при нажатии кнопки
+      if any_button_pressed = '1' and prev_any_button_pressed = '0' then
+        rand_idx1 <= to_integer(unsigned(lfsr(2 downto 0))) mod 8;
+        
+        -- Гарантируем, что второй индекс отличается от первого
+        rand_idx2 <= (to_integer(unsigned(lfsr(5 downto 3))) + 1) mod 8;
+        if rand_idx2 = rand_idx1 then
+          rand_idx2 <= (rand_idx2 + 1) mod 8;
+        end if;
+      end if;
+    end if;
+  end process;
+
+  -- Счетчик для мигания
+  process(clk)
+  begin
+    if rising_edge(clk) then
+      if any_button_pressed = '1' then
+        if cnt < 50000000 then
+          cnt <= cnt + 1;
+        else
+          cnt <= 0;
+          led_state <= not led_state;
+        end if;
+      else
+        led_state <= '1';
+        cnt <= 0;
+      end if;
+    end if;
+  end process;
+
+
+  process(any_button_pressed, led_state, rand_idx1, rand_idx2)
+  begin
+
+    led_temp <= (others => '1');
+    
+    -- Включаем только два случайных светодиода
+    if any_button_pressed = '1' then
+      led_temp(rand_idx1) <= led_state;
+      led_temp(rand_idx2) <= led_state;
+    end if;
+  end process;
+
+  LED <= led_temp;
+
+end arch_lr23;

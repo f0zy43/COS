@@ -1,0 +1,280 @@
+============================проект 1================================================================
+====================================================================================================
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+entity lr51 is
+  Port(
+    rst: in std_logic;
+    clk: in std_logic;
+    SEG: out std_logic_vector(7 downto 0);
+    DIG: out std_logic_vector(3 downto 0);
+    LED: out std_logic_vector(7 downto 0);
+    BUZZER: out std_logic
+  );
+end lr51;
+
+architecture arch_lr51 of lr51 is
+  signal div_cnt: unsigned(23 downto 0);
+  signal clk_1: std_logic;
+  signal clk_1p: std_logic;
+  signal cntfirst: unsigned(3 downto 0); 
+  signal cntsecond: unsigned(3 downto 0);
+  signal cnt4: unsigned(3 downto 0);  
+  signal cnt: unsigned(7 downto 0);     
+
+begin
+  process(rst, clk)
+  begin
+    if rst = '0' then
+      div_cnt <= (others => '0');
+      clk_1 <= '1';
+    elsif rising_edge(clk) then
+      if div_cnt >= 10000000 then  
+        div_cnt <= (others => '0');
+        clk_1 <= not clk_1;
+      else
+        div_cnt <= div_cnt + 1;
+      end if;
+    end if;
+  end process;
+
+  process(rst, clk)
+  begin
+    if rst = '0' then
+      clk_1p <= '1';
+    elsif rising_edge(clk) then
+      clk_1p <= clk_1;
+    end if;
+  end process;
+
+  process(rst, clk)
+  begin
+    if rst = '0' then
+      cntfirst <= (others => '0');
+      cntsecond <= (others => '0');
+      BUZZER <= '1';
+      cnt <= (others => '0');
+    elsif rising_edge(clk) then
+      if clk_1p = '0' and clk_1 = '1' then
+        if cntfirst = 9 and cntsecond = 9 then
+          cntfirst <= (others => '0');
+          cntsecond <= (others => '0');
+          BUZZER <= '0';
+          cnt <= cnt + 1;
+        elsif cntfirst = 9 then
+          cntfirst <= (others => '0');
+          cntsecond <= cntsecond + 1;
+          BUZZER <= '1';
+        else
+          cntfirst <= cntfirst + 1;
+        end if;
+      end if;
+    end if;
+  end process;
+
+  process(rst, clk)
+  begin
+    if rst = '0' then
+      DIG <= "1111";
+    elsif rising_edge(clk) then
+      case div_cnt(19 downto 18) is
+        when "00" => DIG <= "1110";
+        when "01" => DIG <= "1101";
+        when "10" => DIG <= "1011";
+        when "11" => DIG <= "0111";
+        when others => DIG <= "1111";
+      end case;
+    end if;
+  end process;
+
+  process(rst, clk)
+  begin
+    if rst = '0' then
+      cnt4 <= (others => '0');
+    elsif rising_edge(clk) then
+      case div_cnt(19 downto 18) is
+        when "00" => cnt4 <= cntfirst;
+        when "01" => cnt4 <= cntsecond;
+        when others => cnt4 <= (others => '0');
+      end case;
+    end if;
+  end process;
+
+  process(rst, clk)
+  begin 
+    if rst = '0' then
+      SEG <= (others => '0');
+    elsif rising_edge(clk) then
+      case cnt4 is
+        when "0000" => SEG <= "00111111"; -- 0
+        when "0001" => SEG <= "00000110"; -- 1
+        when "0010" => SEG <= "01011011"; -- 2
+        when "0011" => SEG <= "01001111"; -- 3
+        when "0100" => SEG <= "01100110"; -- 4
+        when "0101" => SEG <= "01101101"; -- 5
+        when "0110" => SEG <= "01111101"; -- 6
+        when "0111" => SEG <= "00000111"; -- 7
+        when "1000" => SEG <= "01111111"; -- 8
+        when "1001" => SEG <= "01101111"; -- 9
+        when others => SEG <= (others => '1');
+      end case;
+    end if;
+  end process;
+
+  LED <= not std_logic_vector(cnt);
+
+end arch_lr51;
+
+============================проект 2================================================================
+====================================================================================================
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+entity lr52 is
+  Port(
+    rst: in std_logic;
+    clk: in std_logic;
+    SEG: out std_logic_vector(7 downto 0);
+    DIG: out std_logic_vector(3 downto 0);
+    LED: out std_logic_vector(7 downto 0);
+    BUZZER: out std_logic
+  );
+end lr52;
+
+architecture arch_lr52 of lr52 is
+  signal div_cnt: unsigned(23 downto 0);
+  signal clk_1: std_logic;
+  signal clk_1p: std_logic;
+  signal cnt0, cnt1, cnt2, cnt3: unsigned(3 downto 0);
+  signal cnt4: unsigned(3 downto 0);
+  signal cnt: unsigned(7 downto 0);
+  signal digit_select: unsigned(1 downto 0);
+  signal buzzer_enable: std_logic;
+
+begin
+  process(rst, clk)
+  begin
+    if rst = '0' then
+      div_cnt <= (others => '0');
+      clk_1 <= '0';
+    elsif rising_edge(clk) then
+      if div_cnt = 10000000 then
+        div_cnt <= (others => '0');
+        clk_1 <= not clk_1;
+      else
+        div_cnt <= div_cnt + 1;
+      end if;
+    end if;
+  end process;
+
+  -- Регистр для обнаружения фронта
+  process(rst, clk)
+  begin
+    if rst = '0' then
+      clk_1p <= '0';
+    elsif rising_edge(clk) then
+      clk_1p <= clk_1;
+    end if;
+  end process;
+
+  -- 4-разрядный счетчик (0000-9999)
+  process(rst, clk)
+  begin
+    if rst = '0' then
+      cnt0 <= (others => '0');
+      cnt1 <= (others => '0');
+      cnt2 <= (others => '0');
+      cnt3 <= (others => '0');
+      buzzer_enable <= '0';
+      cnt <= (others => '0');
+    elsif rising_edge(clk) then
+      buzzer_enable <= '0';
+      
+      if clk_1p = '0' and clk_1 = '1' then -- Обнаружение фронта
+        if cnt0 = 9 then
+          cnt0 <= (others => '0');
+			 buzzer_enable <= '1'; -- Активируем баззер
+          cnt <= cnt + 1; -- Увеличиваем счетчик для светодиодов
+          if cnt1 = 9 then
+            cnt1 <= (others => '0');
+				buzzer_enable <= '1'; -- Активируем баззер
+            cnt <= cnt + 1; -- Увеличиваем счетчик для светодиодов
+            if cnt2 = 9 then
+              cnt2 <= (others => '0');
+				  buzzer_enable <= '1'; -- Активируем баззер
+              cnt <= cnt + 1; -- Увеличиваем счетчик для светодиодов
+              if cnt3 = 9 then
+                cnt3 <= (others => '0');
+                buzzer_enable <= '1'; -- Активируем баззер
+                cnt <= cnt + 1; -- Увеличиваем счетчик для светодиодов
+              else
+                cnt3 <= cnt3 + 1;
+              end if;
+            else
+              cnt2 <= cnt2 + 1;
+            end if;
+          else
+            cnt1 <= cnt1 + 1;
+          end if;
+        else
+          cnt0 <= cnt0 + 1;
+        end if;
+      end if;
+    end if;
+  end process;
+
+  -- Управление баззером
+  BUZZER <= '0' when buzzer_enable = '1' else '1';
+
+  -- Мультиплексирование разрядов индикатора
+  digit_select <= div_cnt(17 downto 16); -- Более быстрая частота обновления
+  process(digit_select)
+  begin
+    case digit_select is
+      when "00" => DIG <= "1110"; -- Первый разряд
+      when "01" => DIG <= "1101"; -- Второй разряд
+      when "10" => DIG <= "1011"; -- Третий разряд
+      when "11" => DIG <= "0111"; -- Четвертый разряд
+      when others => DIG <= "1111";
+    end case;
+  end process;
+
+  -- Выбор данных для активного разряда
+  process(digit_select, cnt0, cnt1, cnt2, cnt3)
+  begin
+    case digit_select is
+      when "00" => cnt4 <= cnt0;
+      when "01" => cnt4 <= cnt1;
+      when "10" => cnt4 <= cnt2;
+      when "11" => cnt4 <= cnt3;
+      when others => cnt4 <= (others => '0');
+    end case;
+  end process;
+
+  -- Декодирование цифры в семисегментный код
+  process(cnt4)
+  begin
+    case cnt4 is
+      when "0000" => SEG <= "00111111"; -- 0
+      when "0001" => SEG <= "00000110"; -- 1
+      when "0010" => SEG <= "01011011"; -- 2
+      when "0011" => SEG <= "01001111"; -- 3
+      when "0100" => SEG <= "01100110"; -- 4
+      when "0101" => SEG <= "01101101"; -- 5
+      when "0110" => SEG <= "01111101"; -- 6
+      when "0111" => SEG <= "00000111"; -- 7
+      when "1000" => SEG <= "01111111"; -- 8
+      when "1001" => SEG <= "01101111"; -- 9
+      when others => SEG <= (others => '1');
+    end case;
+  end process;
+
+  -- Управление светодиодами
+  LED <= not std_logic_vector(cnt);
+
+end arch_lr52;

@@ -1,0 +1,133 @@
+============================проект 1================================================================
+====================================================================================================
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_ARITH.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+
+entity lr41 is
+	port(
+		KEY: in STD_LOGIC;
+		BUZZER: out STD_LOGIC
+		);
+end lr41;
+
+architecture arch_lr41 of lr41 is
+begin
+	process(KEY)
+	begin
+		case KEY is
+			when '0' => BUZZER <= '0';
+			when others => BUZZER <= '1';
+		end case;
+	end process;
+end arch_lr41;
+
+============================проект 2================================================================
+====================================================================================================
+
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+
+entity lr42 is
+port(
+    KEY: in STD_LOGIC_VECTOR(2 downto 0); 
+    SEG: out STD_LOGIC_VECTOR(7 downto 0);
+    DIG: out STD_LOGIC_VECTOR(3 downto 0)
+);
+end lr42;
+
+architecture arch_lr42 of lr42 is
+    function key_to_seg(key: std_logic_vector(2 downto 0)) return std_logic_vector is
+    begin
+        case key is
+            when "000" => return "00111111"; -- 0
+            when "100" => return "00000110"; -- 1
+            when "010" => return "01011011"; -- 2
+            when "001" => return "01001111"; -- 3
+            when "011" => return "01110111"; -- A
+            when "101" => return "01111100"; -- B
+            when "110" => return "00111001"; -- C
+            when others => return "01110001"; -- Все сегменты выключены
+        end case;
+    end function;
+
+begin
+    DIG <= "1110";  -- Активируем только первый разряд индикатора
+    SEG <= key_to_seg(KEY); -- Преобразуем код клавиши в сегментный код
+end arch_lr42;
+
+============================проект 3================================================================
+====================================================================================================
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+entity lr43 is
+  Port(
+    clk: in STD_LOGIC; 
+    SEG: out STD_LOGIC_VECTOR(7 downto 0);
+    DIG: out STD_LOGIC_VECTOR(3 downto 0)
+  );
+end lr43;
+
+architecture arch_lr43 of lr43 is
+  signal counter: integer range 0 to 9 := 0;
+  signal slow_clock: std_logic := '0';
+  signal freq_counter: integer range 0 to 50000000 := 0;
+  
+  -- Функция преобразования числа в 7-сегментный код с точкой
+  function digit_to_seg(digit: integer; dp: std_logic) return std_logic_vector is
+    variable seg7: std_logic_vector(6 downto 0);
+  begin
+    case digit is
+      when 0 => seg7 := "0111111"; 
+      when 1 => seg7 := "0000110";
+      when 2 => seg7 := "1011011";
+      when 3 => seg7 := "1001111";
+      when 4 => seg7 := "1100110";
+      when 5 => seg7 := "1101101";
+      when 6 => seg7 := "1111101";
+      when 7 => seg7 := "0000111";
+      when 8 => seg7 := "1111111";
+      when 9 => seg7 := "1101111";
+      when others => seg7 := "0000000";
+    end case;
+    return not dp & seg7; -- точка + сегменты
+  end function;
+
+begin
+  -- Делитель частоты для создания медленного тактового сигнала (1 Гц)
+  process(clk)
+  begin
+    if rising_edge(clk) then
+      if freq_counter < 50000000 then
+        freq_counter <= freq_counter + 1;
+      else
+        freq_counter <= 0;
+        slow_clock <= not slow_clock;
+      end if;
+    end if;
+  end process;
+
+  -- Основной счетчик от 0 до 9
+  process(slow_clock)
+  begin
+    if rising_edge(slow_clock) then
+      if counter < 9 then
+        counter <= counter + 1;
+      else
+        counter <= 0;
+      end if;
+    end if;
+  end process;
+
+  DIG <= "1110";  -- Активируем только первый разряд
+
+  -- Преобразование цифры в 7-сегментный код
+  SEG <= digit_to_seg(counter, '0');
+
+end arch_lr43;

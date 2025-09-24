@@ -1,0 +1,158 @@
+============================проект 1================================================================
+====================================================================================================
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_ARITH.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+entity lr31 is
+  Port(
+    clk: in STD_LOGIC; 
+    LED: out STD_LOGIC_VECTOR(7 downto 0) := (others => '1')-- выходные данные, 4 светодиода по их индексам с 0 по 3 (в сумме 4)
+    );
+end lr31;
+architecture arch_lr31 of lr31 is
+	signal cnt: std_logic_vector(7 downto 0) := (others => '1'); -- сигнал для счетчик
+	signal freq: std_logic_vector(23 downto 0) := (others => '1'); -- сигнал для частоты
+begin
+  process(clk)
+  begin
+    if rising_edge(clk) then
+		if freq(23) = '1' then
+			cnt <= cnt + 1;
+			freq(23) <= '0';
+		else
+			freq <= freq + '1';
+		end if;
+	end if;
+  end process;
+  LED <= not std_logic_vector(cnt);
+end arch_lr31;
+
+============================проект 2================================================================
+====================================================================================================
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_ARITH.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+entity lr32 is
+  Port(
+    clk: in STD_LOGIC; 
+    LED: out STD_LOGIC_VECTOR(7 downto 0);-- выходные данные, 4 светодиода по их индексам с 0 по 3 (в сумме 4)
+    KEY: in STD_LOGIC_VECTOR(2 downto 0)
+	 );
+end lr32;
+architecture arch_lr32 of lr32 is
+	signal cnt: std_logic_vector(7 downto 0) := (others => '1'); -- сигнал для счетчик
+	signal freq: std_logic_vector(23 downto 0) := (others => '1'); -- сигнал для частоты
+	signal state: std_logic := '0';
+	signal key_up, rkey_up: std_logic;
+begin
+  process(clk)
+  begin
+	if rising_edge(clk) then
+		key_up <= KEY(0);
+		rkey_up <= key_up;
+	end if;
+  end process;
+  process(clk)
+  begin
+	if rising_edge(clk) then
+		if state = '0' then
+				if rkey_up /= key_up then
+					state <= '1';
+					if rkey_up <= '1' then
+						cnt <= cnt + 1;
+					end if;
+				end if;
+		else
+			freq <= freq + '1';
+			if freq(23) = '1' then
+				state <= '0';
+				freq(23) <= '0';
+			end if;
+		end if;
+	end if;
+  end process;
+  LED <= not std_logic_vector(cnt);
+end arch_lr32;
+
+============================проект 3================================================================
+====================================================================================================
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_ARITH.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+
+entity lr33 is
+  Port(
+    clk: in STD_LOGIC; 
+    LED: out STD_LOGIC_VECTOR(7 downto 0);
+    KEY: in STD_LOGIC_VECTOR(2 downto 0)
+  );
+end lr33;
+
+architecture arch_lr33 of lr33 is
+  signal cnt: std_logic_vector(7 downto 0) := (others => '0');
+  signal freq: std_logic_vector(25 downto 0) := (others => '0');
+  signal state: std_logic := '0';
+  signal key_prev: std_logic_vector(2 downto 0) := (others => '1');
+  signal key_pressed: std_logic_vector(2 downto 0) := (others => '0');
+begin
+  -- Единый процесс для обработки кнопок и счетчика
+  process(clk)
+  begin
+    if rising_edge(clk) then
+      -- Обновление предыдущего состояния кнопок
+      key_prev <= KEY(2 downto 0);
+      
+      if state = '0' then
+        -- Обнаружение нажатий кнопок в режиме ожидания
+        key_pressed <= key_prev and not KEY(2 downto 0);
+        
+        -- Проверяем, была ли нажата какая-либо кнопка
+        if key_pressed /= "000" then
+          state <= '1';
+          
+          -- Обработка нажатий кнопок
+          if key_pressed(0) = '1' then  -- s1: по нажатию +1
+            cnt <= cnt + 1;
+          end if;
+          
+          if key_pressed(1) = '1' then  -- s2: по нажатию -1
+            cnt <= cnt - 1;
+          end if;
+          
+          if key_pressed(2) = '1' then  -- s3: по нажатию сброс
+            cnt <= (others => '0');
+          end if;
+        end if;
+      else
+        -- Режим задержки (антидребезг и обработка удержания)
+        freq <= freq + 1;
+        
+        -- Проверяем удержание кнопок s1 и s2
+        if freq(25) = '1' then  -- Более медленная частота для удержания
+          if KEY(0) = '0' then  -- s1: при удержании +1
+            cnt <= cnt + 1;
+          end if;
+          
+          if KEY(1) = '0' then  -- s2: при удержании -1
+            cnt <= cnt - 1;
+          end if;
+        end if;
+        
+        -- Завершение задержки
+        if freq(25) = '1' then
+          state <= '0';
+          freq <= (others => '0');
+          key_pressed <= (others => '0');
+        end if;
+      end if;
+    end if;
+  end process;
+
+  LED <= not cnt;  -- Инвертируем для отображения на светодиодах
+end arch_lr33;
